@@ -7,8 +7,12 @@ namespace sjtu {
 struct Order {
     FixedString<20> username; FixedString<20> trainID; FixedString<30> from; FixedString<30> to; int leavingTime; int arrivingTime; int price; int num; int status; int timestamp; int day; int fromIdx; int toIdx;
     Order() : leavingTime(0), arrivingTime(0), price(0), num(0), status(0), timestamp(0), day(0), fromIdx(0), toIdx(0) {}
+    bool operator==(const Order &o) const { return timestamp == o.timestamp; }
 };
-struct PendingOrder { int timestamp; FixedString<20> username; int num; int fromIdx; int toIdx; int orderTimestamp; };
+struct PendingOrder {
+    int timestamp; FixedString<20> username; int num; int fromIdx; int toIdx; int orderTimestamp;
+    bool operator==(const PendingOrder &o) const { return timestamp == o.timestamp; }
+};
 class TicketManager {
     TrainManager &tm; UserManager &um; BPlusTree<pair<FixedString<20>, int>, Order, 20> orders; BPlusTree<pair<pair<FixedString<20>, int>, int>, PendingOrder, 20> pending_queue; int timestamp_counter;
 public:
@@ -103,9 +107,13 @@ public:
         if (o.status == 0) {
             o.status = 2; orders.update(res[n - 1].first, o); SeatArray sa; tm.get_seats(o.trainID.c_str(), o.day, sa); for (int k = o.fromIdx; k < o.toIdx; ++k) sa.seats[k] += o.num;
             sjtu::vector<pair<pair<pair<FixedString<20>, int>, int>, PendingOrder>> pq; pending_queue.range_search(pair<pair<FixedString<20>, int>, int>(pair<FixedString<20>, int>(o.trainID, o.day), 0), pair<pair<FixedString<20>, int>, int>(pair<FixedString<20>, int>(o.trainID, o.day), 2000000000), pq);
-            for (size_t i = 0; i < pq.size(); ++i) { PendingOrder &po = pq[i].second; Order po_o; if (orders.find(pair<FixedString<20>, int>(po.username, -po.orderTimestamp), po_o) && po_o.status == 1) { bool can = true; for (int k = po.fromIdx; k < po.toIdx; ++k) if (sa.seats[k] < po.num) { can = false; break; } if (can) { for (int k = po.fromIdx; k < po.toIdx; ++k) sa.seats[k] -= po.num; po_o.status = 0; orders.update(pair<FixedString<20>, int>(po.username, -po.orderTimestamp), po_o); } } }
+            for (size_t i = 0; i < pq.size(); ++i) { PendingOrder &po = pq[i].second; Order po_o; if (orders.find(pair<FixedString<20>, int>(po.username, -po.orderTimestamp), po_o) && po_o.status == 1) { bool can = true; for (int k = po.fromIdx; k < po.toIdx; ++k) if (sa.seats[k] < po.num) { can = false; break; } if (can) { for (int k = po.fromIdx; k < po.toIdx; ++k) sa.seats[k] -= po.num; po_o.status = 0; orders.update(pair<FixedString<20>, int>(po.username, -po.orderTimestamp), po_o); pending_queue.remove(pq[i].first, po); } } }
             tm.update_seats(o.trainID.c_str(), o.day, sa);
-        } else { o.status = 2; orders.update(res[n - 1].first, o); } return 0;
+        } else {
+            o.status = 2; orders.update(res[n - 1].first, o);
+            PendingOrder po; po.orderTimestamp = o.timestamp; po.username = o.username; po.num = o.num; po.fromIdx = o.fromIdx; po.toIdx = o.toIdx; po.timestamp = o.timestamp;
+            pending_queue.remove(pair<pair<FixedString<20>, int>, int>(pair<FixedString<20>, int>(o.trainID, o.day), o.timestamp), po);
+        } return 0;
     }
     void clean() { orders.clear(); pending_queue.clear(); timestamp_counter = 0; }
 };

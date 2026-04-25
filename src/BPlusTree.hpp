@@ -71,6 +71,14 @@ public:
         while (true) { read_node(curr_pos, curr); if (curr.is_leaf) break; int i = 0; while (i < curr.size && !(key_low < curr.keys[i])) i++; curr_pos = curr.children[i]; }
         while (curr_pos != -1) { read_node(curr_pos, curr); for (int i = 0; i < curr.size; ++i) { if (key_high < curr.keys[i]) return; if (!(curr.keys[i] < key_low)) res.push_back(sjtu::pair<Key, Value>(curr.keys[i], curr.values[i])); } curr_pos = curr.next; }
     }
+    void remove(const Key &key, const Value &value) {
+        if (root_pos == -1) return; long curr_pos = root_pos; Node curr;
+        while (true) { read_node(curr_pos, curr); if (curr.is_leaf) break; int i = 0; while (i < curr.size && !(key < curr.keys[i])) i++; curr_pos = curr.children[i]; }
+        for (int i = 0; i < curr.size; ++i) if (curr.keys[i] == key && curr.values[i] == value) {
+            for (int j = i; j < curr.size - 1; ++j) { curr.keys[j] = curr.keys[j + 1]; curr.values[j] = curr.values[j + 1]; }
+            curr.size--; write_node(curr.pos, curr); return;
+        }
+    }
 };
 }
 #endif
